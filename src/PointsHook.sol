@@ -9,9 +9,14 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
+import {PointsToken} from "./PointsToken.sol";
 
 contract PointsHook is BaseHook {
-    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
+    PointsToken public immutable pointsToken;
+
+    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
+        pointsToken = new PointsToken();
+    }
 
     function getHookPermissions()
         public
@@ -57,5 +62,15 @@ contract PointsHook is BaseHook {
         bytes calldata hookData
     ) external override returns (bytes4, BalanceDelta) {
         return (BaseHook.afterAddLiquidity.selector, delta);
+    }
+
+    function getPointsForAmount(
+        uint256 amount
+    ) internal pure returns (uint256) {
+        return amount; // 1:1 with ETH
+    }
+
+    function awardPoints(address to, uint256 amount) internal {
+        pointsToken.mint(to, getPointsForAmount(amount));
     }
 }
