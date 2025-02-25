@@ -37,4 +37,25 @@ contract PointsHook is BaseHook {
                 afterRemoveLiquidityReturnDelta: false
             });
     }
+
+    function afterSwap(
+        address,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata,
+        BalanceDelta delta,
+        bytes calldata
+    ) external override returns (bytes4, int128) {
+        return (BaseHook.afterSwap.selector, 0);
+    }
+
+    function afterAddLiquidity(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta delta,
+        BalanceDelta feesAccrued,
+        bytes calldata hookData
+    ) external override returns (bytes4, BalanceDelta) {
+        return (BaseHook.afterAddLiquidity.selector, delta);
+    }
 }
