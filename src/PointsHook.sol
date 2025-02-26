@@ -11,45 +11,59 @@ import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "v4-core/src/types/BeforeSwapDelta.sol";
 import {PointsToken} from "./PointsToken.sol";
 
-contract PointsHook is BaseHook {
+contract PointsHook {
     PointsToken public immutable pointsToken;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {
         pointsToken = new PointsToken();
     }
 
-    function getHookPermissions()
-        public
-        pure
-        override
-        returns (Hooks.Permissions memory)
-    {
-        return
-            Hooks.Permissions({
-                beforeInitialize: false,
-                afterInitialize: false,
-                beforeAddLiquidity: false,
-                afterAddLiquidity: true,
-                beforeRemoveLiquidity: false,
-                afterRemoveLiquidity: false,
-                beforeSwap: false,
-                afterSwap: true,
-                beforeDonate: false,
-                afterDonate: false,
-                beforeSwapReturnDelta: false,
-                afterSwapReturnDelta: false,
-                afterAddLiquidityReturnDelta: false,
-                afterRemoveLiquidityReturnDelta: false
-            });
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+        return Hooks.Permissions({
+            beforeInitialize: false,
+            afterInitialize: false,
+            beforeAddLiquidity: false,
+            afterAddLiquidity: true,
+            beforeRemoveLiquidity: false,
+            afterRemoveLiquidity: false,
+            beforeSwap: false,
+            afterSwap: true,
+            beforeDonate: false,
+            afterDonate: false,
+            beforeSwapReturnDelta: false,
+            afterSwapReturnDelta: false,
+            afterAddLiquidityReturnDelta: false,
+            afterRemoveLiquidityReturnDelta: false
+        });
     }
 
     function afterSwap(
         address,
         PoolKey calldata key,
-        IPoolManager.SwapParams calldata,
+        IPoolManager.SwapParams calldata swapParams,
         BalanceDelta delta,
-        bytes calldata
-    ) external override returns (bytes4, int128) {
+        bytes calldata hookData
+    ) external override onlyPoolManager returns (bytes4, int128) {
+        // We only award points in the ETH/TOKEN pools.
+        if (!key.currency0.isAddressZero()) {
+            return (BaseHook.afterSwap.selector, 0);
+        }
+
+        // We only award points if the user is buying the TOKEN
+        if (!swapParams.zeroForOne) {
+            return (BaseHook.afterSwap.selector, 0);
+        }
+
+        // Let's figure out who's the user
+        address user = parseHookData(hookData);
+
+        // How much ETH are they spending?
+        uint256 ethSpendAmount =
+            swapParams.amountSpecified < 0 ? uint256(-swapParams.amountSpecified) : uint256(int256(-delta.amount0()));
+
+        // And award the points!
+        awardPoints(user, ethSpendAmount);
+
         return (BaseHook.afterSwap.selector, 0);
     }
 
@@ -64,13 +78,19 @@ contract PointsHook is BaseHook {
         return (BaseHook.afterAddLiquidity.selector, delta);
     }
 
-    function getPointsForAmount(
-        uint256 amount
-    ) internal pure returns (uint256) {
+    function getPointsForAmount(uint256 amount) internal pure returns (uint256) {
         return amount; // 1:1 with ETH
     }
 
     function awardPoints(address to, uint256 amount) internal {
         pointsToken.mint(to, getPointsForAmount(amount));
+    }
+
+    function getHookData(address user) public pure returns (bytes memory) {
+        return abi.encode(user);
+    }
+
+    function parseHookData(bytes calldata data) public pure returns (address user) {
+        return abi.decode(data, (address));
     }
 }
